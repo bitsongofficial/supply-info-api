@@ -1,21 +1,21 @@
 {
   "name": "supply-info-api",
   "version": "1.0.0",
-  "description": "An API for basic info about the Juno token supply.",
+  "description": "An API for basic info about the BitSong ($BTSG) token supply.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CosmosContracts/supply-info-api.git"
+    "url": "git+https://github.com/bitsongofficial/supply-info-api.git"
   },
   "author": "",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/CosmosContracts/supply-info-api/issues"
+    "url": "https://github.com/bitsongofficial/supply-info-api/issues"
   },
-  "homepage": "https://github.com/CosmosContracts/supply-info-api#readme",
+  "homepage": "https://github.com/bitsongofficial/supply-info-api#readme",
   "dependencies": {
     "@cosmjs/math": "^0.26.5",
     "@cosmjs/stargate": "^0.26.5",

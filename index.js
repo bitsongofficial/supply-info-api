@@ -3,15 +3,11 @@ const express = require("express");
 const { Decimal } = require("@cosmjs/math");
 const { QueryClient, setupAuthExtension } = require("@cosmjs/stargate");
 const { Tendermint34Client } = require("@cosmjs/tendermint-rpc");
-const {
-  ContinuousVestingAccount,
-  DelayedVestingAccount,
-  PeriodicVestingAccount,
-} = require("cosmjs-types/cosmos/vesting/v1beta1/vesting");
+const { PeriodicVestingAccount } = require("cosmjs-types/cosmos/vesting/v1beta1/vesting");
 
 require("dotenv").config();
 
-const denom = process.env.DENOM || "ujuno";
+const denom = process.env.DENOM || "ubtsg";
 
 const vestingAccounts = process.env.VESTING_ACCOUNTS
   ? process.env.VESTING_ACCOUNTS.split(",")
@@ -26,18 +22,44 @@ async function makeClientWithAuth(rpcUrl) {
 }
 
 // Declare variables
-let totalSupply, communityPool, communityPoolMainDenomTotal, circulatingSupply;
+let ethTotalSupply, ethExcludeAddr1, ethExcludeAddr2, ethSupply, chainSupply, totalSupply, communityPool, communityPoolMainDenomTotal, circulatingSupply;
 
 // Gets supply info from chain
 async function updateData() {
   console.log("Updating supply info", new Date());
 
+  // Get ETH supply
+  ethTotalSupply = await axios({
+    method: "get",
+    url: `${process.env.ETHERSCAN_ENDPOINT}?module=stats&action=tokensupply&contractaddress=${process.env.ERC20_CONTRACT}&apikey=${process.env.ETHERSCAN_KEY}`,
+  });
+
+  console.log("Erc-20 Total Supply: ", ethTotalSupply.data.result)
+
+  ethExcludeAddr1 = await axios({
+    method: "get",
+    url: `${process.env.ETHERSCAN_ENDPOINT}?module=account&action=tokenbalance&contractaddress=${process.env.ERC20_CONTRACT}&address=0x87d3fe35a04b53fcc087ca58218273289c2be6c2&apikey=${process.env.ETHERSCAN_KEY}`,
+  });
+
+  console.log("Erc-20 Exclude Addr 1 Supply: ", ethExcludeAddr1.data.result)
+
+  ethExcludeAddr2 = await axios({
+    method: "get",
+    url: `${process.env.ETHERSCAN_ENDPOINT}?module=account&action=tokenbalance&contractaddress=${process.env.ERC20_CONTRACT}&address=0x36eabd1ce47ba68e7fa773808f039dae4fac2820&apikey=${process.env.ETHERSCAN_KEY}`,
+  });
+
+  console.log("Erc-20 Exclude Addr 2 Supply: ", ethExcludeAddr2.data.result)
+
+  ethSupply = (ethTotalSupply.data.result - ethExcludeAddr1.data.result - ethExcludeAddr2.data.result) / 1e12
+
+  console.log("Eth supply: ", ethSupply)
+
   // Get total supply
-  totalSupply = await axios({
+  chainSupply = await axios({
     method: "get",
     url: `${process.env.REST_API_ENDPOINT}/cosmos/bank/v1beta1/supply/${denom}`,
   });
-  console.log("Total supply: ", totalSupply.data.amount.amount);
+  console.log("Chain supply: ", chainSupply.data.amount.amount);
 
   // Get community pool
   communityPool = await axios({
@@ -54,7 +76,7 @@ async function updateData() {
 
       // Subtract community pool from total supply
       circulatingSupply =
-        totalSupply.data.amount.amount - communityPool.data.pool[i].amount;
+      chainSupply.data.amount.amount - communityPool.data.pool[i].amount;
     }
   }
 
@@ -74,7 +96,12 @@ async function updateData() {
 
     circulatingSupply -= originalVesting - delegatedFree;
   }
+
+  circulatingSupply += ethSupply
   console.log("Circulating supply: ", circulatingSupply);
+
+  totalSupply = Number(chainSupply.data.amount.amount) + Number(ethSupply)
+  console.log("Total supply: ", totalSupply);
 }
 
 // Get initial data
@@ -91,8 +118,16 @@ app.get("/", async (req, res) => {
       6
     ).toString(),
     denom: denom.substring(1).toUpperCase(),
+    chainSupply: Decimal.fromAtomics(
+      chainSupply.data.amount.amount,
+      6
+    ).toString(),
+    ethSupply:  Decimal.fromAtomics(
+      ethSupply,
+      6
+    ).toString(),
     totalSupply: Decimal.fromAtomics(
-      totalSupply.data.amount.amount,
+      totalSupply,
       6
     ).toString(),
   });
@@ -102,8 +137,16 @@ app.get("/circulating-supply", async (req, res) => {
   res.send(Decimal.fromAtomics(circulatingSupply, 6).toString());
 });
 
+app.get("/eth-supply", async (req, res) => {
+  res.send(Decimal.fromAtomics(ethSupply, 6).toString());
+});
+
+app.get("/chain-supply", async (req, res) => {
+  res.send(Decimal.fromAtomics(chainSupply.data.amount.amount, 6).toString());
+});
+
 app.get("/total-supply", async (req, res) => {
-  res.send(Decimal.fromAtomics(totalSupply.data.amount.amount, 6).toString());
+  res.send(Decimal.fromAtomics(totalSupply, 6).toString());
 });
 
 app.get("/community-pool", async (req, res) => {
