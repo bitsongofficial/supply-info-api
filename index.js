@@ -22,7 +22,7 @@ async function makeClientWithAuth(rpcUrl) {
 }
 
 // Declare variables
-let ethTotalSupply, ethExcludeAddr1, ethExcludeAddr2, ethSupply, chainSupply, totalSupply, communityPool, communityPoolMainDenomTotal, circulatingSupply;
+let ethTotalSupply, ethExcludeAddr1, ethExcludeAddr2, ethSupply, chainSupply, multiSigBalance, totalSupply, communityPool, communityPoolMainDenomTotal, circulatingSupply;
 
 // Gets supply info from chain
 async function updateData() {
@@ -61,6 +61,13 @@ async function updateData() {
   });
   console.log("Chain supply: ", chainSupply.data.amount.amount);
 
+  // Get multisig balance
+  multiSigBalance = await axios({
+    method: "get",
+    url: `${process.env.REST_API_ENDPOINT}/cosmos/bank/v1beta1/balances/bitsong12r2d9hhnd2ez4kgk63ar8m40vhaje8yaa94h8w/by_denom?denom=${denom}`,
+  });
+  console.log("Multisig: ", multiSigBalance.data.balance.amount);
+
   // Get community pool
   communityPool = await axios({
     method: "get",
@@ -98,9 +105,10 @@ async function updateData() {
   }
 
   circulatingSupply += ethSupply
+  circulatingSupply -= multiSigBalance.data.balance.amount
   console.log("Circulating supply: ", circulatingSupply);
 
-  totalSupply = Number(chainSupply.data.amount.amount) + Number(ethSupply)
+  totalSupply = Number(chainSupply.data.amount.amount) + Number(ethSupply) - Number(multiSigBalance.data.balance.amount)
   console.log("Total supply: ", totalSupply);
 }
 
